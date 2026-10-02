@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" role="img" width="640" height="640">
+<defs>
+<linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f1f6f5"/>
+</linearGradient>
+<radialGradient id="sombra" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0" stop-color="#0b3f38" stop-opacity=".22"/>
+<stop offset="1" stop-color="#0b3f38" stop-opacity="0"/>
+</radialGradient>
+<linearGradient id="g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7a4fa3"/><stop offset=".45" stop-color="#b58ed6"/><stop offset="1" stop-color="#7a4fa3"/></linearGradient>
+</defs>
+<rect width="640" height="640" fill="url(#fundo)"/>
+<ellipse cx="320" cy="556" rx="168" ry="26" fill="url(#sombra)"/>
+
+<rect x="176" y="176" width="288" height="66" rx="16" fill="#5d3583"/>
+<rect x="192" y="192" width="256" height="8" rx="4" fill="#ffffff" opacity=".35"/>
+<path d="M186 242 h268 v208 q0 34-34 34 H220 q-34 0-34-34 z" fill="url(#g)"/>
+<rect x="206" y="262" width="26" height="176" rx="13" fill="#ffffff" opacity=".30"/>
+<rect x="214" y="276" width="212" height="154" rx="8" fill="#ffffff" opacity=".93"/><rect x="214" y="276" width="212" height="6" rx="3" fill="#5d3583"/><rect x="236" y="306" width="110" height="13" rx="6" fill="#5d3583"/><rect x="236" y="332" width="156" height="9" rx="4" fill="#0b3f38" opacity=".55"/><rect x="236" y="352" width="131" height="5" rx="2.5" fill="#0b3f38" opacity=".26"/><rect x="236" y="364" width="106" height="5" rx="2.5" fill="#0b3f38" opacity=".26"/>
+
+</svg>
