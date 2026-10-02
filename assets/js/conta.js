@@ -274,6 +274,13 @@
     return true;
   }
 
+  /* Celular brasileiro com DDD (10 ou 11 dígitos), aceitando +55 na frente. */
+  function telefoneValido(texto) {
+    var d = String(texto).replace(/\D/g, '');
+    if (d.length > 11 && d.slice(0, 2) === '55') d = d.slice(2);
+    return d.length === 10 || d.length === 11;
+  }
+
   /* ------------------------------------------------------------ montagem */
   function montar() {
     L.iniciar('conta');
@@ -303,6 +310,7 @@
       if (form.matches('[data-cadastrar]')) {
         e.preventDefault();
         if (!cpfValido(valor('n-cpf'))) { L.aviso('CPF inválido. Confira os números.', 'erro'); return; }
+        if (!telefoneValido(valor('n-tel'))) { L.aviso('Celular inválido. Use DDD + número.', 'erro'); return; }
         ocupado(form, true);
         A.cadastrar({
           nome: valor('n-nome'),
@@ -339,6 +347,7 @@
       if (form.matches('[data-salvar-dados]')) {
         e.preventDefault();
         if (valor('d-cpf') && !cpfValido(valor('d-cpf'))) { L.aviso('CPF inválido. Confira os números.', 'erro'); return; }
+        if (valor('d-tel') && !telefoneValido(valor('d-tel'))) { L.aviso('Celular inválido. Use DDD + número.', 'erro'); return; }
         ocupado(form, true);
         A.salvarPerfil({ nome: valor('d-nome'), cpf: valor('d-cpf'), telefone: valor('d-tel') }).then(function () {
           L.aviso('Dados atualizados.', 'ok');

@@ -72,10 +72,27 @@
     email_address_invalid: 'Esse e-mail não parece válido.',
     validation_failed: 'Confira os dados informados.',
     otp_expired: 'O link expirou ou já foi usado. Peça um novo.',
+    unexpected_failure: 'Não foi possível criar a conta. E-mail, CPF ou celular podem já estar cadastrados.',
     rede: 'Sem conexão com o servidor. Verifique a internet e tente de novo.'
   };
 
+  var EM_USO = {
+    email: 'Já existe uma conta com este e-mail.',
+    cpf: 'Este CPF já está cadastrado.',
+    telefone: 'Este celular já está cadastrado.'
+  };
+
   function mensagem(erro) {
+    if (erro && erro.codigo === 'dados_em_uso') {
+      return erro.campos.map(function (c) { return EM_USO[c]; }).join(' ') +
+        ' Tente entrar ou recuperar a senha.';
+    }
+    /* violação de índice único ao editar o perfil (CPF/celular de outra conta) */
+    if (erro && (erro.codigo === '23505' || erro.status === 409)) {
+      var m = String(erro.message || '');
+      if (m.indexOf('cpf') !== -1) return EM_USO.cpf;
+      if (m.indexOf('telefone') !== -1) return EM_USO.telefone;
+    }
     if (erro && erro.codigo && MENSAGENS[erro.codigo]) return MENSAGENS[erro.codigo];
     if (erro && erro.status === 429) return MENSAGENS.over_request_rate_limit;
     return 'Não foi possível concluir agora. Tente novamente em instantes.';
@@ -105,7 +122,8 @@
         if (!resp.ok) {
           var erro = new Error((json && (json.msg || json.message || json.error_description)) || ('HTTP ' + resp.status));
           erro.status = resp.status;
-          erro.codigo = json && (json.error_code || (json.error_description === 'Invalid login credentials' ? 'invalid_credentials' : null));
+          erro.codigo = json && (json.error_code || (typeof json.code === 'string' ? json.code : null) ||
+                                 (json.error_description === 'Invalid login credentials' ? 'invalid_credentials' : null));
           throw erro;
         }
         return json;
@@ -175,10 +193,34 @@
   }
 
   /* ------------------------------------------------------------ ações */
+  /* Pergunta ao banco se e-mail, CPF ou celular já têm cadastro. Se a função
+     não existir (migration 0004 não aplicada), segue: quem barra de verdade
+     são os índices únicos e o próprio Supabase Auth. */
+  function emUso(d) {
+    return chamar('/rest/v1/rpc/cadastro_em_uso', {
+      metodo: 'POST', perfil: true,
+      corpo: { p_email: d.email, p_cpf: d.cpf, p_telefone: d.telefone }
+    }).then(function (r) {
+      return ['email', 'cpf', 'telefone'].filter(function (k) { return r && r[k] === true; });
+    }).catch(function (e) {
+      if (e.codigo === 'rede') throw e;
+      if (janela.console) janela.console.warn('Checagem de cadastro indisponível:', e.message);
+      return [];
+    });
+  }
+
   function cadastrar(d) {
-    return chamar('/auth/v1/signup?redirect_to=' + encodeURIComponent(urlConta()), {
-      metodo: 'POST',
-      corpo: { email: d.email, password: d.senha, data: { nome: d.nome, cpf: d.cpf, telefone: d.telefone } }
+    return emUso(d).then(function (campos) {
+      if (campos.length) {
+        var e = new Error('dados em uso');
+        e.codigo = 'dados_em_uso';
+        e.campos = campos;
+        throw e;
+      }
+      return chamar('/auth/v1/signup?redirect_to=' + encodeURIComponent(urlConta()), {
+        metodo: 'POST',
+        corpo: { email: d.email, password: d.senha, data: { nome: d.nome, cpf: d.cpf, telefone: d.telefone } }
+      });
     }).then(function (r) {
       /* Com "Confirm email" ligado não vem sessão: o cliente confirma pelo e-mail. */
       if (r && r.access_token) {
