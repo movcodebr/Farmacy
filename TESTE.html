@@ -1,5 +1,9 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Teste de conexão</title>
+</head>
 <body>
   <h1>Teste de conexão</h1>
   <ul id="lista"></ul>
@@ -7,8 +11,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const supabase = window.supabase.createClient(
-      sb_publishable_j0kW02l5e1Z7t0nd_mcGsg_f_-wOWMf,
-      eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5anN1YnpyanFzZ3J1c3RqdHd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4ODY4ODIsImV4cCI6MjEwNjQ2Mjg4Mn0.PrDO6T1a9spE-Y-42hJ3cyfF0XeI7cSvBFgTIWAALwo
+      'https://tyjsubzrjqsgrustjtwv.supabase.co',
+      'sb_publishable_j0kW02l5e1Z7t0nd_mcGsg_f_-wOWMf'
     );
 
     (async () => {
