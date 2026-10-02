@@ -1,6 +1,6 @@
 /* =========================================================================
    Minha conta: entrar, cadastrar, pedidos, dados, endereços e clube.
-   A sessão é simulada no navegador — não há autenticação real ainda.
+   Login, cadastro e recuperação de senha usam Supabase Auth (auth.js).
    ========================================================================= */
 (function (janela, documento) {
   'use strict';
@@ -8,6 +8,8 @@
   var D = janela.LojaDados;
   var L = janela.Loja;
   var CFG = D.config;
+  var A = janela.LojaAuth;
+  var recuperacao = false;   /* true quando o cliente chegou pelo link de redefinir senha */
 
   var aba = new janela.URLSearchParams(janela.location.search).get('aba') || 'pedidos';
 
@@ -33,8 +35,6 @@
           '<a href="#" style="font-size:13px" data-esqueci>Esqueci minha senha</a>' +
           '<button class="btn btn--compra btn--bloco" type="submit" style="margin-top:12px">Entrar</button>' +
         '</form>' +
-        '<div class="aviso-legal" style="margin-top:16px"><strong>Demonstração</strong>' +
-        'Não há autenticação real: qualquer e-mail e senha entram, e a sessão fica só neste navegador.</div>' +
       '</section>' +
 
       '<section class="painel">' +
@@ -52,7 +52,7 @@
             '<div class="campo"><label for="n-tel">Celular</label>' +
               '<input id="n-tel" type="tel" required placeholder="(00) 00000-0000"></div>' +
             '<div class="campo campo--largo"><label for="n-senha">Crie uma senha</label>' +
-              '<input id="n-senha" type="password" required minlength="6" autocomplete="new-password"></div>' +
+              '<input id="n-senha" type="password" required minlength="8" autocomplete="new-password"></div>' +
           '</div>' +
           '<label class="filtro__item" style="margin-top:4px">' +
             '<input type="checkbox" id="n-aceite" required>' +
@@ -61,6 +61,21 @@
           '<button class="btn btn--principal btn--bloco" type="submit" style="margin-top:12px">Criar minha conta</button>' +
         '</form>' +
       '</section></div>';
+  }
+
+  /* ------------------------------------------------------------ nova senha */
+  function telaNovaSenha() {
+    return '<section class="painel" style="max-width:480px">' +
+      '<h2 class="painel__titulo">Criar nova senha</h2>' +
+      '<form class="form-checkout" data-nova-senha>' +
+        '<div class="campos">' +
+          '<div class="campo campo--largo"><label for="ns-1">Nova senha</label>' +
+            '<input id="ns-1" type="password" required minlength="8" autocomplete="new-password"></div>' +
+          '<div class="campo campo--largo"><label for="ns-2">Repita a nova senha</label>' +
+            '<input id="ns-2" type="password" required minlength="8" autocomplete="new-password"></div>' +
+        '</div>' +
+        '<button class="btn btn--principal btn--bloco" type="submit" style="margin-top:12px">Salvar nova senha</button>' +
+      '</form></section>';
   }
 
   /* ------------------------------------------------------------ pedidos */
@@ -127,7 +142,7 @@
           '<div class="campo campo--largo"><label for="d-nome">Nome completo</label>' +
             '<input id="d-nome" value="' + L.escapar(c.nome || '') + '" required></div>' +
           '<div class="campo campo--largo"><label for="d-email">E-mail</label>' +
-            '<input id="d-email" type="email" value="' + L.escapar(c.email || '') + '" required></div>' +
+            '<input id="d-email" type="email" value="' + L.escapar(c.email || '') + '" readonly></div>' +
           '<div class="campo"><label for="d-cpf">CPF</label>' +
             '<input id="d-cpf" value="' + L.escapar(c.cpf || '') + '"></div>' +
           '<div class="campo"><label for="d-tel">Celular</label>' +
@@ -152,7 +167,7 @@
         'qualquer momento pelo portal do titular.</p>' +
         '<div class="acoes-passo" style="justify-content:flex-start">' +
           '<a class="btn btn--neutro" href="institucional.html?p=lgpd">Portal do titular (LGPD)</a>' +
-          '<button class="btn btn--neutro" type="button" data-apagar>Apagar meus dados deste navegador</button>' +
+          '<button class="btn btn--neutro" type="button" data-apagar>Sair e limpar dados deste navegador</button>' +
         '</div></div>';
   }
 
@@ -219,7 +234,8 @@
 
   /* ------------------------------------------------------------ montagem */
   function desenhar() {
-    var logado = L.clienteLogado();
+    var logado = !!L.clienteLogado() && !recuperacao;
+    documento.title = (logado ? 'Minha conta' : 'Entrar') + ' | ' + CFG.nomeLoja;
 
     documento.getElementById('trilha').innerHTML =
       '<nav class="trilha" aria-label="Você está aqui"><div class="container"><ol>' +
@@ -230,71 +246,136 @@
       '<div class="container">' +
         '<h1 style="font-size:24px;margin-bottom:20px">' +
           (logado ? 'Minha conta' : 'Entrar ou criar conta') + '</h1>' +
-        (logado ? telaConta() : telaEntrada()) +
+        (logado ? telaConta() : (recuperacao ? telaNovaSenha() : telaEntrada())) +
       '</div>';
   }
 
+  /* ------------------------------------------------------------ auxiliares */
+  function valor(id) { return documento.getElementById(id).value.trim(); }
+
+  function ocupado(form, sim) {
+    var b = form.querySelector('button[type="submit"]');
+    if (b) b.disabled = !!sim;
+  }
+
+  function falha(erro) { L.aviso(A.mensagem(erro), 'erro'); }
+
+  /* Validação dos dígitos verificadores do CPF (só no navegador, para evitar
+     erro de digitação; a loja não consulta a Receita). */
+  function cpfValido(texto) {
+    var c = String(texto).replace(/\D/g, '');
+    if (c.length !== 11 || /^(\d)\1{10}$/.test(c)) return false;
+    for (var t = 9; t < 11; t++) {
+      var soma = 0;
+      for (var i = 0; i < t; i++) soma += Number(c.charAt(i)) * (t + 1 - i);
+      var dv = ((soma * 10) % 11) % 10;
+      if (dv !== Number(c.charAt(t))) return false;
+    }
+    return true;
+  }
+
+  /* ------------------------------------------------------------ montagem */
   function montar() {
     L.iniciar('conta');
-    documento.title = (L.clienteLogado() ? 'Minha conta' : 'Entrar') + ' | ' + CFG.nomeLoja;
     desenhar();
+
+    /* 1) link do e-mail (confirmação/recuperação)  2) valida a sessão guardada */
+    A.processarLink().then(function (r) {
+      if (r && r.tipo === 'erro') L.aviso(r.mensagem, 'erro');
+      else if (r && r.tipo === 'recovery') recuperacao = true;
+      else if (r) L.aviso('E-mail confirmado! Você já está conectado.', 'ok');
+      return A.restaurar();
+    }).catch(function (erro) { falha(erro); }).then(desenhar);
 
     documento.addEventListener('submit', function (e) {
       var form = e.target;
 
       if (form.matches('[data-entrar]')) {
         e.preventDefault();
-        var email = documento.getElementById('e-email').value.trim();
-        L.entrar({ nome: email.split('@')[0].replace(/[._-]/g, ' ') || 'Cliente', email: email, cpf: '', telefone: '' });
-        L.aviso('Bem-vindo de volta!', 'ok');
-        janela.location.href = 'conta.html';
+        ocupado(form, true);
+        A.entrar(valor('e-email'), documento.getElementById('e-senha').value).then(function () {
+          L.aviso('Bem-vindo de volta!', 'ok');
+          janela.location.href = 'conta.html';
+        }).catch(function (erro) { falha(erro); ocupado(form, false); });
         return;
       }
 
       if (form.matches('[data-cadastrar]')) {
         e.preventDefault();
-        L.entrar({
-          nome: documento.getElementById('n-nome').value.trim(),
-          email: documento.getElementById('n-email').value.trim(),
-          cpf: documento.getElementById('n-cpf').value.trim(),
-          telefone: documento.getElementById('n-tel').value.trim()
-        });
-        L.aviso('Conta criada! Você já está no Clube São Carlos.', 'ok');
-        janela.location.href = 'conta.html';
+        if (!cpfValido(valor('n-cpf'))) { L.aviso('CPF inválido. Confira os números.', 'erro'); return; }
+        ocupado(form, true);
+        A.cadastrar({
+          nome: valor('n-nome'),
+          email: valor('n-email'),
+          senha: documento.getElementById('n-senha').value,
+          cpf: valor('n-cpf'),
+          telefone: valor('n-tel')
+        }).then(function (r) {
+          if (r.confirmar) {
+            L.aviso('Quase lá! Enviamos um link de confirmação para o seu e-mail. Abra-o para ativar a conta.', 'ok');
+            form.reset();
+            ocupado(form, false);
+          } else {
+            L.aviso('Conta criada! Você já está no Clube São Carlos.', 'ok');
+            janela.location.href = 'conta.html';
+          }
+        }).catch(function (erro) { falha(erro); ocupado(form, false); });
+        return;
+      }
+
+      if (form.matches('[data-nova-senha]')) {
+        e.preventDefault();
+        var s1 = documento.getElementById('ns-1').value;
+        if (s1 !== documento.getElementById('ns-2').value) { L.aviso('As senhas não são iguais.', 'erro'); return; }
+        ocupado(form, true);
+        A.definirSenha(s1).then(function () {
+          recuperacao = false;
+          L.aviso('Senha atualizada!', 'ok');
+          return A.restaurar();
+        }).then(desenhar).catch(function (erro) { falha(erro); ocupado(form, false); });
         return;
       }
 
       if (form.matches('[data-salvar-dados]')) {
         e.preventDefault();
-        L.entrar({
-          nome: documento.getElementById('d-nome').value.trim(),
-          email: documento.getElementById('d-email').value.trim(),
-          cpf: documento.getElementById('d-cpf').value.trim(),
-          telefone: documento.getElementById('d-tel').value.trim()
-        });
-        L.aviso('Dados atualizados.', 'ok');
-        desenhar();
+        if (valor('d-cpf') && !cpfValido(valor('d-cpf'))) { L.aviso('CPF inválido. Confira os números.', 'erro'); return; }
+        ocupado(form, true);
+        A.salvarPerfil({ nome: valor('d-nome'), cpf: valor('d-cpf'), telefone: valor('d-tel') }).then(function () {
+          L.aviso('Dados atualizados.', 'ok');
+          desenhar();
+        }).catch(function (erro) { falha(erro); ocupado(form, false); });
       }
     });
 
     documento.addEventListener('click', function (e) {
       if (e.target.closest('[data-sair]')) {
-        L.sair();
-        L.aviso('Você saiu da sua conta.');
-        janela.location.href = 'index.html';
+        A.sair().then(function () {
+          L.aviso('Você saiu da sua conta.');
+          janela.location.href = 'index.html';
+        });
         return;
       }
 
       if (e.target.closest('[data-esqueci]')) {
         e.preventDefault();
-        L.aviso('Enviamos um link de redefinição para o seu e-mail.', 'ok');
+        var campo = documento.getElementById('e-email');
+        if (!campo || !campo.value.trim() || !campo.checkValidity()) {
+          L.aviso('Digite seu e-mail no campo acima e clique de novo.', 'erro');
+          if (campo) campo.focus();
+          return;
+        }
+        /* resposta igual exista ou não a conta, para não revelar quem é cliente */
+        A.recuperar(campo.value.trim()).then(function () {
+          L.aviso('Se esse e-mail tiver cadastro, enviamos um link para redefinir a senha.', 'ok');
+        }).catch(falha);
         return;
       }
 
       if (e.target.closest('[data-apagar]')) {
-        L.sair();
-        L.aviso('Dados removidos deste navegador.');
-        janela.location.href = 'index.html';
+        A.sair().then(function () {
+          L.aviso('Você saiu e os dados foram removidos deste navegador.');
+          janela.location.href = 'index.html';
+        });
         return;
       }
 
