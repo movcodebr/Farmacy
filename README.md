@@ -174,7 +174,7 @@ banco. Em `supabase/migrations/` estão o esquema e a carga inicial:
 
 | Arquivo | Conteúdo |
 |---|---|
-| `0001_schema.sql` | 9 tabelas no schema `farmacia`, índices, triggers e RLS |
+| `0001_schema.sql` | 11 tabelas no schema `farmacia`, índices, triggers, RLS e privilégios |
 | `0002_carga_inicial.sql` | 7 categorias, 26 produtos, 17 lojas, 9 serviços, 3 cupons, 13 faixas de frete |
 
 Decisões que valem saber:
@@ -188,6 +188,13 @@ Decisões que valem saber:
 - **RLS em todas as tabelas.** O catálogo é leitura pública; escrever nele só
   com `service_role`, que ignora RLS. Pedido é do dono e de mais ninguém.
   Avaliar exige conta — sem isso a caixa de comentários vira alvo de robô.
+- **Conta e perfil.** O login é do Supabase Auth; `clientes` é o perfil (nome, CPF,
+  telefone, clube), criado por trigger no cadastro, e `enderecos` guarda um endereço
+  por CEP. Cada cliente só enxerga os próprios dados.
+- **Pedidos são criados pelo servidor.** O cliente só lê os próprios pedidos; criar
+  pedido e mudar status é com `service_role`, numa Edge Function que recalcula preços
+  e frete — o navegador não é confiável para dizer quanto custa o carrinho. É o mesmo
+  ponto em que a cobrança entra (`cobrar()` em `checkout.js`).
 - **Item de pedido guarda nome e preço.** O catálogo muda de preço; o pedido
   antigo tem de continuar mostrando o que o cliente pagou.
 
